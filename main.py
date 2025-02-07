@@ -324,6 +324,8 @@ def Data_Cleaning(df_Bur):
         df_Bur['DATECLOSED'] = np.nan
     if 'DATEREPORTED' not in Avail_Cols:
         df_Bur['DATEREPORTED'] = np.nan
+    if 'BALANCE' not in Avail_Cols:
+        df_Bur['BALANCE'] = np.nan
     
     # ## Changing Date Foramt
     df_Bur['DATEOPENED_N'] = pd.to_datetime(df_Bur['DATEOPENED'], errors='coerce', dayfirst=True)
@@ -1272,6 +1274,9 @@ def hello_http(request):
             'enquiry_bnpl_data' : df_Enq_Dict,
             'user_aggregated_policy_data' : df_User_Dict}
     }
+    
+    ## Logging Details
+    print(f"Meesho User ID : {meesho_user_id}")
     
 #     ## Comment this out in VM
 #     # Define your GCS bucket and folder path
