@@ -176,6 +176,7 @@ def Data_Rename_NTC(df_Bur):
 def Bur_Status_Flag(df_Bur,data_json):
     
     ## Cases tagged as NTC Cases
+    ## The error message here comes as User not present in the Bureau
     if 'Error' in data_json['CCRResponse']['CIRReportDataLst'][0].keys():
         df_Error = pd.DataFrame(data_json['CCRResponse']['CIRReportDataLst'][0]['Error'], index=[0])
         df_Bur = pd.concat([df_Bur,df_Error], axis=1)
@@ -323,6 +324,8 @@ def Data_Cleaning(df_Bur):
         df_Bur['DATECLOSED'] = np.nan
     if 'DATEREPORTED' not in Avail_Cols:
         df_Bur['DATEREPORTED'] = np.nan
+    if 'BALANCE' not in Avail_Cols:
+        df_Bur['BALANCE'] = np.nan
     
     # ## Changing Date Foramt
     df_Bur['DATEOPENED_N'] = pd.to_datetime(df_Bur['DATEOPENED'], errors='coerce', dayfirst=True)
@@ -469,7 +472,7 @@ def Policy_Feat(df_Bur):
 
     ## Score Policy
     # df_Bur.groupby('REPORTNUMBER')['SCORE'].min()==df_Bur.groupby('REPORTNUMBER')['SCORE'].max()
-    df_Bur['Sco_Pol'] = (df_Bur['Score'] >= 700)
+    df_Bur['Sco_Pol'] = (df_Bur['Score'] >= 650)
     
     return df_Bur
 
@@ -494,7 +497,7 @@ def Enq_Cnt(df_Bur, df_Enq):
     
     return df_Bur
 
-def Bur_Pol_Agg(df_Bur):
+def Bur_Pol_Agg(df_Bur, Bur_Hist_Flag):
     
     ## Case when Bureau Data is empty
     ## This case will happen when dataframe is empty
@@ -540,7 +543,10 @@ def Bur_Pol_Agg(df_Bur):
     Non_Rej = ((df_User['Sum_Perf_Avail']>0) & (df_User['Cnt_Derog_Accts']==0) & (df_User['Cnt_OverDue_Accts']<=1) & (df_User['Cnt_DPD90_L12M_Accts']<=0) & (df_User['Cnt_DPD60_L12M_Accts']<=1) & (df_User['Cnt_DPD30_L6M_Accts']<=1) & ((df_User['Cnt_DPD30_L12M_Accts']/df_User['Cnt_Accts'])<=0.33) & (df_User['Sum_DPD_Ins_L12M']<=5) & (df_User['Sum_DPD_Ins_L6M']<=3) & (df_User['Sum_DPD_Ins_L3M']<=0) & (~(df_User['Max_Inq_L3M']>10)) & (df_User['Max_Score']==1))
     
     ## Accept Reject Reason
-    Accpt_Ind = Non_Rej[0]
+    if Bur_Hist_Flag == 'ETC':
+        Accpt_Ind = Non_Rej[0]
+    else:
+        Accpt_Ind = True
     
     return df_User, Accpt_Ind
 
@@ -560,11 +566,12 @@ def NTC_Cond_2(df_Bur):
     if ((MOB < 6) | (np.isnan(MOB))) & (No_Accts<=1):
         Bur_Hist_Flag = 'NTC'
         NTC_Type = 'NTC_New_User'
+        df_Bur['Bur_Hist_Sta'] = 'NTC_New_User'
     else:
         Bur_Hist_Flag = 'ETC'
         NTC_Type = None
     
-    return Bur_Hist_Flag, NTC_Type
+    return df_Bur, Bur_Hist_Flag, NTC_Type
 
 def multiplier_calculation(offline_bnpl_score, min_monthly_income, max_monthly_income): 
     multiplier_grid = {
@@ -580,15 +587,15 @@ def multiplier_calculation(offline_bnpl_score, min_monthly_income, max_monthly_i
     # Determine the bucket based on the offline_bnpl_score
     if offline_bnpl_score >= 900:
         score_bucket = 'A'
-    elif offline_bnpl_score >= 800:
+    elif offline_bnpl_score >= 850:
         score_bucket = 'B'
-    elif offline_bnpl_score >= 700:
+    elif offline_bnpl_score >= 800:
         score_bucket = 'C'
-    elif offline_bnpl_score >= 600:
+    elif offline_bnpl_score >= 700:
         score_bucket = 'D'
-    elif offline_bnpl_score >= 500:
+    elif offline_bnpl_score >= 600:
         score_bucket = 'E'
-    elif offline_bnpl_score >= 400:
+    elif offline_bnpl_score >= 200:
         score_bucket = 'F'
     else:
         score_bucket = 'G'
@@ -606,7 +613,7 @@ def multiplier_calculation(offline_bnpl_score, min_monthly_income, max_monthly_i
         income_index = 3
     elif (min_monthly_income == 40000) & (max_monthly_income == 50000):
         income_index = 3
-    elif (min_monthly_income == 50000) & (max_monthly_income is None):
+    elif (min_monthly_income == 50000):
         income_index = 4
     else:
         income_index = 1
@@ -630,15 +637,15 @@ def max_capping_calculation(offline_bnpl_score, min_monthly_income, max_monthly_
     # Determine the bucket based on the offline_bnpl_score
     if offline_bnpl_score >= 900:
         score_bucket = 'A'
-    elif offline_bnpl_score >= 800:
+    elif offline_bnpl_score >= 850:
         score_bucket = 'B'
-    elif offline_bnpl_score >= 700:
+    elif offline_bnpl_score >= 800:
         score_bucket = 'C'
-    elif offline_bnpl_score >= 600:
+    elif offline_bnpl_score >= 700:
         score_bucket = 'D'
-    elif offline_bnpl_score >= 500:
+    elif offline_bnpl_score >= 600:
         score_bucket = 'E'
-    elif offline_bnpl_score >= 400:
+    elif offline_bnpl_score >= 200:
         score_bucket = 'F'
     else:
         score_bucket = 'G'
@@ -656,7 +663,7 @@ def max_capping_calculation(offline_bnpl_score, min_monthly_income, max_monthly_
         income_index = 3  # Income range: 30-50
     elif (min_monthly_income == 40000) & (max_monthly_income == 50000):
         income_index = 3  # Income range: 30-50
-    elif (min_monthly_income == 50000) & (max_monthly_income is None):
+    elif (min_monthly_income == 50000):
         income_index = 4  # Income range: 50+
     else:
         income_index = 1  # Default index for other cases
@@ -681,15 +688,15 @@ def min_capping_calculation(offline_bnpl_score, min_monthly_income, max_monthly_
     # Determine the bucket based on the offline_bnpl_score
     if offline_bnpl_score >= 900:
         score_bucket = 'A'
-    elif offline_bnpl_score >= 800:
+    elif offline_bnpl_score >= 850:
         score_bucket = 'B'
-    elif offline_bnpl_score >= 700:
+    elif offline_bnpl_score >= 800:
         score_bucket = 'C'
-    elif offline_bnpl_score >= 600:
+    elif offline_bnpl_score >= 700:
         score_bucket = 'D'
-    elif offline_bnpl_score >= 500:
+    elif offline_bnpl_score >= 600:
         score_bucket = 'E'
-    elif offline_bnpl_score >= 400:
+    elif offline_bnpl_score >= 200:
         score_bucket = 'F'
     else:
         score_bucket = 'G'
@@ -707,7 +714,7 @@ def min_capping_calculation(offline_bnpl_score, min_monthly_income, max_monthly_
         income_index = 3  # Income range: 30-50
     elif (min_monthly_income == 40000) & (max_monthly_income == 50000):
         income_index = 3  # Income range: 30-50
-    elif (min_monthly_income == 50000) & (max_monthly_income is None):
+    elif (min_monthly_income == 50000):
         income_index = 4  # Income range: 50+
     else:
         income_index = 1  # Default index for other cases
@@ -1008,8 +1015,7 @@ def applying_feature_schema_bureau_data(df_Bur):
      'Recent',
      'CollateralType',
      'CollateralValue',
-     'LastName',
-     'CustomFields']
+     'LastName']
     
     columns_df_bureau = [col for col in df_Bur.columns]
     columns_in_feature_schema = [col for col in columns_df_bureau if col in feature_schema]
@@ -1132,7 +1138,10 @@ def hello_http(request):
     ftpl_data = {}
 
     for dict_feature_label in ftpl_features_list:
-        ftpl_data[dict_feature_label['label']]=float(dict_feature_label['value'])
+        if dict_feature_label['value'] == 'None':
+            ftpl_data[dict_feature_label['label']]=np.nan
+        else:
+            ftpl_data[dict_feature_label['label']]=float(dict_feature_label['value'])
         
     ## Reading the user_id variable
     meesho_user_id = data_dict["user_id"]
@@ -1150,6 +1159,8 @@ def hello_http(request):
     # ## Testing for ETC & NTC Flag
     if Input_Detail_Type == 'Valid_Detail':
         df_Bur, Bur_Hist_Flag = Bur_Status_Flag(df_Bur,json_data)
+    elif Input_Detail_Type == 'Invalid_Detail':
+        Bur_Hist_Flag = 'NTC'
     else:
         Bur_Hist_Flag = 'NA'
     
@@ -1163,7 +1174,7 @@ def hello_http(request):
         
     ## Checking NTC condition of new user
     if (Bur_Hist_Flag == 'ETC') :
-        Bur_Hist_Flag, NTC_Type  = NTC_Cond_2(df_Bur)
+        df_Bur, Bur_Hist_Flag, NTC_Type  = NTC_Cond_2(df_Bur)
     else:
         NTC_Type = 'NTC_No_Accts'
     
@@ -1207,7 +1218,7 @@ def hello_http(request):
     
     ## Creating user level policy features
     if (Bur_Hist_Flag == 'ETC') | (NTC_Type == 'NTC_New_User'):
-        df_User, Accpt_Ind = Bur_Pol_Agg(df_Bur)
+        df_User, Accpt_Ind = Bur_Pol_Agg(df_Bur, Bur_Hist_Flag)
     elif Bur_Hist_Flag == 'NTC':
         df_User = None
         Accpt_Ind = True
@@ -1263,6 +1274,9 @@ def hello_http(request):
             'enquiry_bnpl_data' : df_Enq_Dict,
             'user_aggregated_policy_data' : df_User_Dict}
     }
+    
+    ## Logging Details
+    print(f"Meesho User ID : {meesho_user_id}")
     
 #     ## Comment this out in VM
 #     # Define your GCS bucket and folder path
